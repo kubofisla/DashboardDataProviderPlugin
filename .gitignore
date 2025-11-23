@@ -1,0 +1,23 @@
+## Ignore Visual Studio temporary files, build results, and files
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+*.user
+*.suo
+*.sln.docstates
+
+## Visual Studio cache/options
+.vs/
+
+## NuGet
+packages/
+*.nupkg
+*.snupkg
+.nuget/
+
+## Other files
+*.swp
+*.swo
+*~
+.DS_Store
