@@ -18,7 +18,7 @@
 ### Step 2: Install to SimHub
 
 1. Locate your SimHub plugins directory:
-   - Typically: `C:\Program Files (x86)\SimHub\Plugins\`
+   - Typically: `C:\Program Files (x86)\SimHub\`
    - Or check SimHub settings for custom plugin path
 
 2. Copy the DLL to the plugins folder:

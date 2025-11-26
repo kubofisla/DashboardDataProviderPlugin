@@ -185,45 +185,17 @@ namespace SimHub.Plugins.DashboardData
                 }
                 else if (path.EndsWith("/resettofast"))
                 {
-                    double fastestLapTime;
-                    lock (_latestDataLock)
-                    {
-                        if (_latestData?.FastestLapTime != null)
-                        {
-                            fastestLapTime = ConvertToSeconds(_latestData.FastestLapTime);
-                        }
-                        else
-                        {
-                            var response = new { status = "error", message = "No fastest lap time available" };
-                            SendJsonResponse(context, response, 400);
-                            return;
-                        }
-                    }
-                    
-                    SetTargetTime(fastestLapTime);
-                    var successResponse = new { status = "success", targetTime = GetTargetTime(), resetTo = "fastest" };
-                    SendJsonResponse(context, successResponse, 200);
+                    object response;
+                    int statusCode;
+                    ResetToFastCore(out response, out statusCode);
+                    SendJsonResponse(context, response, statusCode);
                 }
                 else if (path.EndsWith("/resettolast"))
                 {
-                    double lastLapTime;
-                    lock (_latestDataLock)
-                    {
-                        if (_latestData?.LastLapTime != null)
-                        {
-                            lastLapTime = ConvertToSeconds(_latestData.LastLapTime);
-                        }
-                        else
-                        {
-                            var response = new { status = "error", message = "No last lap time available" };
-                            SendJsonResponse(context, response, 400);
-                            return;
-                        }
-                    }
-                    
-                    SetTargetTime(lastLapTime);
-                    var successResponse = new { status = "success", targetTime = GetTargetTime(), resetTo = "last" };
-                    SendJsonResponse(context, successResponse, 200);
+                    object response;
+                    int statusCode;
+                    ResetToLastCore(out response, out statusCode);
+                    SendJsonResponse(context, response, statusCode);
                 }
                 else
                 {
@@ -236,6 +208,50 @@ namespace SimHub.Plugins.DashboardData
                 var response = new { status = "error", message = ex.Message };
                 SendJsonResponse(context, response, 400);
             }
+        }
+
+        private void ResetToFastCore(out object response, out int statusCode)
+        {
+            double fastestLapTime;
+            lock (_latestDataLock)
+            {
+                if (_latestData?.FastestLapTime != null)
+                {
+                    fastestLapTime = ConvertToSeconds(_latestData.FastestLapTime);
+                }
+                else
+                {
+                    response = new { status = "error", message = "No fastest lap time available" };
+                    statusCode = 400;
+                    return;
+                }
+            }
+
+            SetTargetTime(fastestLapTime);
+            response = new { status = "success", targetTime = GetTargetTime(), resetTo = "fastest" };
+            statusCode = 200;
+        }
+
+        private void ResetToLastCore(out object response, out int statusCode)
+        {
+            double lastLapTime;
+            lock (_latestDataLock)
+            {
+                if (_latestData?.LastLapTime != null)
+                {
+                    lastLapTime = ConvertToSeconds(_latestData.LastLapTime);
+                }
+                else
+                {
+                    response = new { status = "error", message = "No last lap time available" };
+                    statusCode = 400;
+                    return;
+                }
+            }
+
+            SetTargetTime(lastLapTime);
+            response = new { status = "success", targetTime = GetTargetTime(), resetTo = "last" };
+            statusCode = 200;
         }
 
         private void SendJsonResponse(HttpListenerContext context, object data, int statusCode)
