@@ -42,20 +42,14 @@ Adjust target time by delta (e.g., +0.1 or -0.1).
 ```
 
 ### POST /dashboarddata/resettofast
-Reset target time to fastest lap time.
-```json
-{
-  "fastestLapTime": 122.100
-}
-```
+Reset target time to fastest lap time (reads from current telemetry data).
+- No request body required
+- Returns error if no fastest lap time is available
 
 ### POST /dashboarddata/resettolast
-Reset target time to last lap time.
-```json
-{
-  "lastLapTime": 123.456
-}
-```
+Reset target time to last lap time (reads from current telemetry data).
+- No request body required
+- Returns error if no last lap time is available
 
 ## Installation
 

@@ -185,33 +185,45 @@ namespace SimHub.Plugins.DashboardData
                 }
                 else if (path.EndsWith("/resettofast"))
                 {
-                    string body;
-                    using (var reader = new System.IO.StreamReader(context.Request.InputStream))
+                    double fastestLapTime;
+                    lock (_latestDataLock)
                     {
-                        body = reader.ReadToEnd();
+                        if (_latestData?.FastestLapTime != null)
+                        {
+                            fastestLapTime = ConvertToSeconds(_latestData.FastestLapTime);
+                        }
+                        else
+                        {
+                            var response = new { status = "error", message = "No fastest lap time available" };
+                            SendJsonResponse(context, response, 400);
+                            return;
+                        }
                     }
-
-                    dynamic json = JsonConvert.DeserializeObject(body);
-                    double fastestLapTime = (double)json.fastestLapTime;
+                    
                     SetTargetTime(fastestLapTime);
-
-                    var response = new { status = "success", targetTime = GetTargetTime(), resetTo = "fastest" };
-                    SendJsonResponse(context, response, 200);
+                    var successResponse = new { status = "success", targetTime = GetTargetTime(), resetTo = "fastest" };
+                    SendJsonResponse(context, successResponse, 200);
                 }
                 else if (path.EndsWith("/resettolast"))
                 {
-                    string body;
-                    using (var reader = new System.IO.StreamReader(context.Request.InputStream))
+                    double lastLapTime;
+                    lock (_latestDataLock)
                     {
-                        body = reader.ReadToEnd();
+                        if (_latestData?.LastLapTime != null)
+                        {
+                            lastLapTime = ConvertToSeconds(_latestData.LastLapTime);
+                        }
+                        else
+                        {
+                            var response = new { status = "error", message = "No last lap time available" };
+                            SendJsonResponse(context, response, 400);
+                            return;
+                        }
                     }
-
-                    dynamic json = JsonConvert.DeserializeObject(body);
-                    double lastLapTime = (double)json.lastLapTime;
+                    
                     SetTargetTime(lastLapTime);
-
-                    var response = new { status = "success", targetTime = GetTargetTime(), resetTo = "last" };
-                    SendJsonResponse(context, response, 200);
+                    var successResponse = new { status = "success", targetTime = GetTargetTime(), resetTo = "last" };
+                    SendJsonResponse(context, successResponse, 200);
                 }
                 else
                 {
@@ -261,6 +273,23 @@ namespace SimHub.Plugins.DashboardData
                 _targetTime = Math.Max(0, _targetTime + delta);
                 SaveSettings();
             }
+        }
+
+        private double ConvertToSeconds(object timeValue)
+        {
+            if (timeValue is TimeSpan ts)
+            {
+                return ts.TotalSeconds;
+            }
+            else if (timeValue is double d)
+            {
+                return d;
+            }
+            else if (double.TryParse(timeValue?.ToString(), out double parsed))
+            {
+                return parsed;
+            }
+            return 0.0;
         }
 
         private void SaveSettings()
