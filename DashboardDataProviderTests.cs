@@ -60,7 +60,7 @@ namespace DashboardDataProviderPlugin.Tests
             // Arrange
             var provider = CreateProvider();
             var fastestLap = TimeSpan.FromSeconds(90); // 1:30.000
-            SetLatestData(provider, new { FastestLapTime = fastestLap });
+            SetLatestData(provider, new { BestLapTime = fastestLap });
 
             // Act
             var (response, statusCode) = InvokeResetCore(provider, "ResetToFastCore");
@@ -77,12 +77,35 @@ namespace DashboardDataProviderPlugin.Tests
         }
 
         [TestMethod]
+        public void ResetToFast_SetsTargetTime_WhenSessionBestAvailable()
+        {
+            // Arrange
+            var provider = CreateProvider();
+            var sessionBest = 85.5;
+            // BestLapTime is null, but SessionBest is available
+            SetLatestData(provider, new { BestLapTime = (TimeSpan?)null, SessionBest = sessionBest });
+
+            // Act
+            var (response, statusCode) = InvokeResetCore(provider, "ResetToFastCore");
+
+            // Assert
+            Assert.AreEqual(200, statusCode);
+
+            var statusProp = response.GetType().GetProperty("status");
+            var targetTimeProp = response.GetType().GetProperty("targetTime");
+
+            Assert.AreEqual("success", statusProp.GetValue(response));
+            Assert.AreEqual(85.5, (double)targetTimeProp.GetValue(response), 0.0001);
+            Assert.AreEqual(85.5, GetTargetTime(provider), 0.0001);
+        }
+
+        [TestMethod]
         public void ResetToFast_ReturnsError_WhenNoFastestLapAvailable()
         {
             // Arrange
             var provider = CreateProvider();
-            // No FastestLapTime in latest data => should trigger error path.
-            SetLatestData(provider, new { FastestLapTime = (TimeSpan?)null });
+            // No BestLapTime or SessionBest in latest data => should trigger error path.
+            SetLatestData(provider, new { BestLapTime = (TimeSpan?)null, SessionBest = (object)null });
 
             // Act
             var (response, statusCode) = InvokeResetCore(provider, "ResetToFastCore");

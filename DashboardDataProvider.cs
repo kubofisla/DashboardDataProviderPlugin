@@ -55,7 +55,7 @@ namespace SimHub.Plugins.DashboardData
             _httpListener.Start();
             _httpThread = new Thread(HttpServerLoop) { IsBackground = true };
             _httpThread.Start();
-        
+
             // Add properties
             pluginManager.AddProperty("DashboardData.PluginStatus", this.GetType(), "Initialized");
             pluginManager.AddProperty("DashboardData.TargetTime", this.GetType(), _targetTime);
@@ -82,12 +82,16 @@ namespace SimHub.Plugins.DashboardData
                         {
                             LastLapTime = data.NewData.LastLapTime,
                             CurrentLapTime = data.NewData.CurrentLapTime,
-                            FastestLapTime = data.NewData.BestLapTime,
-                            CompactDelta = pluginManager.GetPropertyValue("DataCorePlugin.CustomExpression.CompactDelta"),
-                            SessionBestLiveDeltaSeconds = pluginManager.GetPropertyValue("PersistantTrackerPlugin.SessionBestLiveDeltaSeconds").ToString(),
-                            TargetTime = GetTargetTime(),
+                            BestLapTime = data.NewData.BestLapTime,
 
-                            // Add more fields as needed
+                            // PersistantTracker lap timing values
+                            SessionBestLiveDeltaSeconds = pluginManager.GetPropertyValue("PersistantTrackerPlugin.SessionBestLiveDeltaSeconds").ToString(),
+                            SessionBest = pluginManager.GetPropertyValue("PersistantTrackerPlugin.SessionBest"),
+                            LapInvalidated = pluginManager.GetPropertyValue("DataCorePlugin.GameData.LapInvalidated"),
+
+                            // Custom target time and delta
+                            TargetTime = GetTargetTime(),
+                            TargetTimeDelta = GetTargetTimeDelta(pluginManager),
                         };
                     }
                 }
@@ -109,7 +113,7 @@ namespace SimHub.Plugins.DashboardData
                 try
                 {
                     var context = _httpListener.GetContext();
-                    
+
                     if (context.Request.HttpMethod == "GET")
                     {
                         HandleGetRequest(context);
@@ -152,7 +156,7 @@ namespace SimHub.Plugins.DashboardData
             try
             {
                 string path = context.Request.Url.AbsolutePath.ToLower();
-                
+
                 if (path.EndsWith("/settarget"))
                 {
                     string body;
@@ -212,24 +216,44 @@ namespace SimHub.Plugins.DashboardData
 
         private void ResetToFastCore(out object response, out int statusCode)
         {
-            double fastestLapTime;
+            double fastestLapTime = 0;
+            bool found = false;
+
             lock (_latestDataLock)
             {
-                if (_latestData?.FastestLapTime != null)
+                if (_latestData != null)
                 {
-                    fastestLapTime = ConvertToSeconds(_latestData.FastestLapTime);
-                }
-                else
-                {
-                    response = new { status = "error", message = "No fastest lap time available" };
-                    statusCode = 400;
-                    return;
+                    // Try SessionBest first (from PersistantTracker)
+                    double sessionBest = ConvertToSeconds(_latestData.SessionBest);
+                    if (sessionBest > 0)
+                    {
+                        fastestLapTime = sessionBest;
+                        found = true;
+                    }
+                    // Fallback to BestLapTime (from GameData)
+                    else
+                    {
+                        double bestLap = ConvertToSeconds(_latestData.BestLapTime);
+                        if (bestLap > 0)
+                        {
+                            fastestLapTime = bestLap;
+                            found = true;
+                        }
+                    }
                 }
             }
 
-            SetTargetTime(fastestLapTime);
-            response = new { status = "success", targetTime = GetTargetTime(), resetTo = "fastest" };
-            statusCode = 200;
+            if (found)
+            {
+                SetTargetTime(fastestLapTime);
+                response = new { status = "success", targetTime = GetTargetTime(), resetTo = "fastest" };
+                statusCode = 200;
+            }
+            else
+            {
+                response = new { status = "error", message = "No fastest lap time available" };
+                statusCode = 400;
+            }
         }
 
         private void ResetToLastCore(out object response, out int statusCode)
@@ -289,6 +313,34 @@ namespace SimHub.Plugins.DashboardData
                 _targetTime = Math.Max(0, _targetTime + delta);
                 SaveSettings();
             }
+        }
+
+        private double GetTargetTimeDelta(PluginManager pluginManager)
+        {
+            //double bestLiveDelta = ConvertToSeconds(pluginManager.GetPropertyValue("PersistantTrackerPlugin.AllTimeBestLiveDeltaSeconds"));
+            //double bestLap = ConvertToSeconds(pluginManager.GetPropertyValue("PersistantTrackerPlugin.AllTimeBest"));
+
+            // 1. Get the live delta to the session best lap
+            // "PersistantTrackerPlugin.SessionBestLiveDeltaSeconds" is usually a double or null
+            double bestLiveDelta = ConvertToSeconds(pluginManager.GetPropertyValue("PersistantTrackerPlugin.SessionBestLiveDeltaSeconds"));
+
+            // 2. Get the session best lap time
+            double bestLap = ConvertToSeconds(pluginManager.GetPropertyValue("PersistantTrackerPlugin.SessionBest"));
+
+            // 3. Get our custom target time
+            double targetTime = GetTargetTime();
+
+            // If we don't have a valid session best or target time, the delta might not make sense.
+            // However, usually if SessionBest is 0, it means no lap set.
+            if (bestLap <= 0 || targetTime <= 0)
+            {
+                return 0.0;
+            }
+
+            // 4. Calculate the offset
+            // LiveDeltaToTarget = LiveDeltaToSessionBest + (SessionBest - TargetTime)
+            double offset = bestLap - targetTime;
+            return bestLiveDelta + offset;
         }
 
         private double ConvertToSeconds(object timeValue)

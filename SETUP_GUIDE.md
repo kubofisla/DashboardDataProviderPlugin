@@ -1,218 +1,164 @@
-# Setup and Installation Guide
+# Setup and Developer Guide
 
-## Prerequisites
+This guide describes how to build the Dashboard Data Provider SimHub plugin from source, deploy it into a local SimHub installation, and test the HTTP endpoints. It is aimed at developers working from scratch on this repository.
 
-- **SimHub** installed
-- **Loupedeck** software installed
-- **Visual Studio 2022** or later (for building)
-- **.NET Framework 4.8** or higher
+## 1. Prerequisites
 
-## Part 1: Dashboard Data Provider Plugin (SimHub)
+- **SimHub** installed (typically `C:\Program Files (x86)\SimHub`)
+- **.NET Framework 4.8** Developer Pack
+- **Visual Studio 2022** or later with *.NET desktop development* workload (or MSBuild / .NET SDK capable of building .NET Framework projects)
+- **Windows PowerShell 5.1+** (default on modern Windows)
 
-### Step 1: Build the Plugin
+## 2. Open the solution
 
-1. Open `DashboardDataProviderPlugin.sln` in Visual Studio
-2. Build in **Release** mode: `Build > Build Solution`
-3. Find the compiled DLL at: `bin\Release\DashboardDataProviderPlugin.dll`
+1. Clone or download this repository to a local folder.
+2. Open `DashboardDataProviderPlugin.sln` in Visual Studio.
 
-### Step 2: Install to SimHub
+The main project is `DashboardDataProviderPlugin.csproj`; tests live in `DashboardDataProviderPlugin.Tests.csproj`.
 
-1. Locate your SimHub plugins directory:
-   - Typically: `C:\Program Files (x86)\SimHub\`
-   - Or check SimHub settings for custom plugin path
+## 3. Build the plugin DLL
 
-2. Copy the DLL to the plugins folder:
-   ```
-   DashboardDataProviderPlugin.dll → SimHub\Plugins\
-   ```
+### Option A: Visual Studio
 
-3. Restart SimHub
+1. In Visual Studio, select **Release** (or **Debug**) configuration.
+2. Use **Build > Build Solution**.
+3. The compiled plugin will be at:
+   - `bin\\<Configuration>\\DashboardDataProviderPlugin.dll` (for example, `bin\\Release\\DashboardDataProviderPlugin.dll`).
 
-4. Verify plugin loaded:
-   - Go to **Plugins** tab in SimHub
-   - Look for "Dashboard Data Provider" in the list
-   - Status should show "Running"
+### Option B: Command line
 
-### Step 3: Test the HTTP Server
-
-Once SimHub and the plugin are running, test the API:
+From the repository root:
 
 ```powershell
-# PowerShell command
-Invoke-WebRequest -Uri "http://localhost:8080/dashboarddata/" -Method Get | ConvertTo-Json
-
-# Or use curl
-curl http://localhost:8080/dashboarddata/
+msbuild .\DashboardDataProviderPlugin.csproj /p:Configuration=Release
 ```
 
-Expected response:
+This produces `bin\\Release\\DashboardDataProviderPlugin.dll`.
+
+## 4. Deploy into SimHub (deploy-simhub-plugin.ps1)
+
+Use the included `deploy-simhub-plugin.ps1` script to copy the built DLL into your SimHub installation and restart SimHub.
+
+### What the script does
+
+- Stops any running `SimHub` process.
+- Copies `bin\\<Configuration>\\DashboardDataProviderPlugin.dll` to the SimHub installation directory.
+- Starts SimHub again.
+
+By default the script assumes:
+
+- SimHub is installed in `C:\\Program Files (x86)\\SimHub`.
+- The destination DLL path is `C:\\Program Files (x86)\\SimHub\\DashboardDataProviderPlugin.dll`.
+
+If your setup is different (for example you want to place the DLL under `SimHub\\Plugins`), adjust the variables in the script accordingly.
+
+### Usage
+
+From the repository root in PowerShell:
+
+```powershell
+# Deploy Release build (default)
+.\deploy-simhub-plugin.ps1
+
+# Deploy Debug build
+.\deploy-simhub-plugin.ps1 -Configuration Debug
+```
+
+After deployment, open SimHub and confirm that the **Dashboard Data Provider** plugin appears in the **Plugins** tab and is running.
+
+## 5. Test the HTTP endpoints (test_endpoints.ps1)
+
+Once SimHub and the plugin are running, you can validate the API using `test_endpoints.ps1`.
+
+The script will:
+
+- Call `GET http://localhost:8080/dashboarddata/` and print the JSON payload.
+- Call `POST http://localhost:8080/dashboarddata/resettofast` to exercise one of the write endpoints.
+
+Run it from the repository root:
+
+```powershell
+.\test_endpoints.ps1
+```
+
+A typical response from the `GET /dashboarddata/` endpoint looks like:
+
 ```json
 {
-  "LastLapTime": "00:01:30.1860000",
-  "CurrentLapTime": "00:00:31.3470000",
-  "FastestLapTime": "00:01:30.1860000",
-  "CompactDelta": "0.0",
-  "SessionBestLiveDeltaSeconds": "-7.56",
-  "TargetTime": 120.5
+  "LastLapTime": 123.456,
+  "CurrentLapTime": 45.123,
+  "FastestLapTime": 122.100,
+  "CompactDelta": "+1.234",
+  "SessionBestLiveDeltaSeconds": "1.23",
+  "TargetTime": 120.500
 }
 ```
 
-## Part 2: Loupedeck SimHub Integration Plugin
+If the script cannot reach the endpoint, verify that SimHub is running and the plugin is loaded.
 
-### Step 1: Build the Plugin
+## 6. Monitor live data (monitor-dashboard.ps1)
 
-1. Open `src/SimHubIntegrationPlugin.csproj` in Visual Studio
-2. Build in **Release** mode: `Build > Build Solution`
-3. Compiled plugin: `src/bin/Release/`
+For continuous monitoring of the dashboard data while driving, use `monitor-dashboard.ps1`.
 
-### Step 2: Package the Plugin
-
-The plugin needs to be packaged as `.lplug4` file:
-
-1. Ensure you have the Loupedeck SDK installed
-2. Use Loupedeck CLI to package:
-   ```bash
-   loupedeck plugin package --input src/bin/Release --output SimHubIntegration.lplug4
-   ```
-   
-   Or if using Visual Studio Loupedeck extension:
-   - Right-click project > **Package Plugin**
-
-### Step 3: Install to Loupedeck
-
-**Method A: Using Loupedeck Software**
-1. Open Loupedeck software
-2. Go to **Plugins** section
-3. Click **+ Install Plugin**
-4. Select the `.lplug4` file
-5. Restart Loupedeck
-
-**Method B: Manual Installation**
-1. Find Loupedeck plugins folder:
-   - `%AppData%\Loupedeck\Plugins\`
-   
-2. Extract `.lplug4` file to plugins folder:
-   ```bash
-   # The .lplug4 is a ZIP archive
-   Expand-Archive -Path "SimHubIntegration.lplug4" -DestinationPath "$env:AppData\Loupedeck\Plugins\SimHubIntegration"
-   ```
-
-3. Restart Loupedeck software
-
-### Step 4: Configure on Device
-
-1. Launch Loupedeck software
-2. Open your device configuration
-3. Navigate to the middle row where you want the delta display
-4. Add a new trigger:
-   - Search for "Delta Display"
-   - Drag it to the 4 center boxes in the middle row
-5. Save configuration
-
-## Testing
-
-### Test 1: Verify HTTP Server is Running
+### Usage
 
 ```powershell
-# Should return 200 and JSON data
-Invoke-WebRequest -Uri "http://localhost:8080/dashboarddata/" -Method Get
+# Poll every 2 seconds (default)
+.\monitor-dashboard.ps1
+
+# Poll every second
+.\monitor-dashboard.ps1 -IntervalSeconds 1
+
+# Poll a custom URL
+.\monitor-dashboard.ps1 -Url "http://localhost:8080/dashboarddata/" -IntervalSeconds 1
 ```
 
-### Test 2: Test Adjust Endpoint
+The script clears the console on each iteration and prints:
+
+- Iteration number and timestamp.
+- The JSON response from the `/dashboarddata/` endpoint, or an error message if the request failed.
+
+Use this while on track in your sim to confirm that values update as expected.
+
+## 7. Optional: run unit tests
+
+The solution includes a test project `DashboardDataProviderPlugin.Tests.csproj` using MSTest.
+
+- In Visual Studio, open **Test Explorer**, run all tests, and ensure they pass after your changes.
+
+## 8. Using Loupedeck to visualize data (optional)
+
+This repository only provides the SimHub plugin and HTTP API. To visualize the telemetry on a Loupedeck device (including delta display), use the separate Loupedeck plugin project:
+
+- **SimHubIntegrationPlugin**: https://github.com/kubofisla/SimHubIntegrationPlugin
+
+Follow that repositorys README for build, installation, and configuration instructions. It consumes the HTTP endpoints exposed by this Dashboard Data Provider plugin.
+
+## 9. Troubleshooting
+
+### HTTP server not responding
+
+**Problem**: Requests to `http://localhost:8080/dashboarddata/` time out or fail.
+
+**Checklist**:
+
+1. Verify SimHub is running.
+2. Confirm the Dashboard Data Provider plugin is loaded and running in SimHubs **Plugins** tab.
+3. Check Windows Firewall rules for SimHub / port 8080.
+4. Look in SimHub logs for plugin-related errors.
+
+### Inspecting raw responses
+
+To quickly inspect the raw JSON manually:
 
 ```powershell
-# Increase target by 0.1 seconds
-$body = @{ delta = 0.1 } | ConvertTo-Json
-Invoke-WebRequest -Uri "http://localhost:8080/dashboarddata/adjust" -Method Post -Body $body -ContentType "application/json"
-
-# Expected response:
-# { "status": "success", "targetTime": 120.6 }
+Invoke-WebRequest -Uri "http://localhost:8080/dashboarddata/" -Method Get | Select-Object -ExpandProperty Content
 ```
 
-### Test 3: Test Reset Endpoints
+or using `curl`:
 
 ```powershell
-# Reset to fastest lap
-$body = @{ fastestLapTime = 119.250 } | ConvertTo-Json
-Invoke-WebRequest -Uri "http://localhost:8080/dashboarddata/resettofast" -Method Post -Body $body -ContentType "application/json"
-
-# Reset to last lap
-$body = @{ lastLapTime = 120.100 } | ConvertTo-Json
-Invoke-WebRequest -Uri "http://localhost:8080/dashboarddata/resettolast" -Method Post -Body $body -ContentType "application/json"
+curl http://localhost:8080/dashboarddata/
 ```
 
-### Test 4: Launch Sim and Verify Display
-
-1. Start SimHub
-2. Launch your racing sim
-3. Go on track to generate telemetry
-4. Check Loupedeck device:
-   - Delta display should show current delta
-   - Background should be **GREEN** (faster than target) or **YELLOW** (slower)
-   - Color updates as you drive
-
-## Troubleshooting
-
-### HTTP Server Not Responding
-
-**Problem**: `Invoke-WebRequest` times out on `http://localhost:8080`
-
-**Solutions**:
-1. Verify SimHub is running
-2. Check plugin loaded in SimHub Plugins tab
-3. Check Windows Firewall allows localhost:8080
-4. Look in SimHub logs for errors
-
-**Enable logs**:
-```powershell
-# Add to DashboardDataProvider.cs if needed (after PluginManager.SetPropertyValue)
-# System.IO.File.AppendAllText("C:\temp\dashboarddata.log", $"[{DateTime.Now}] Data updated\n")
-```
-
-### Loupedeck Plugin Not Loading
-
-**Problem**: Delta Display trigger not appearing in Loupedeck
-
-**Solutions**:
-1. Rebuild plugin in Visual Studio
-2. Re-package `.lplug4` file
-3. Fully restart Loupedeck software
-4. Check plugin folder permissions
-5. Verify `.lplug4` contains all required files
-
-### Delta Not Updating
-
-**Problem**: Delta display shows 0.0 and doesn't change while driving
-
-**Solutions**:
-1. Verify `SessionBestLiveDeltaSeconds` is being sent from SimHub
-2. Check URL in DataLoader points to correct port (8080)
-3. Verify target time is set (check settings.json in AppData)
-4. Make sure you're on track and game is running
-
-## File Locations
-
-### SimHub Plugin Settings
-```
-%AppData%\SimHub\DashboardDataProvider\settings.json
-```
-
-### Loupedeck Plugin Configuration
-```
-%AppData%\Loupedeck\Plugins\SimHubIntegration\
-```
-
-### SimHub Plugins
-```
-C:\Program Files (x86)\SimHub\Plugins\
-```
-
-## Next Steps
-
-1. Build and install Dashboard Data Provider plugin
-2. Test HTTP endpoints
-3. Build and install Loupedeck plugin
-4. Configure delta display on device
-5. Launch sim and verify everything works
-
-See `DELTA_DISPLAY.md` in Loupedeck plugin for feature documentation.
+If you continue to have issues with visualizing the data on a Loupedeck device, refer to the troubleshooting section in the `SimHubIntegrationPlugin` repository.

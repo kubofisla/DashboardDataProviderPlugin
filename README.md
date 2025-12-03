@@ -53,10 +53,20 @@ Reset target time to last lap time (reads from current telemetry data).
 
 ## Installation
 
-1. Build the plugin: `dotnet build` or compile in Visual Studio
-2. Copy the built DLL to your SimHub plugins directory
-3. Restart SimHub
-4. The plugin will start the HTTP server automatically
+You can either install a prebuilt DLL from GitHub Releases or build the plugin from source.
+
+### Option A: Install from GitHub releases (recommended)
+
+1. Download the latest release from: https://github.com/kubofisla/SimHubIntegrationPlugin/releases
+2. Close SimHub.
+3. Copy the plugin DLL from the release into your SimHub installation directory, for example:
+   - `C:\\Program Files (x86)\\SimHub\\DashboardDataProviderPlugin.dll`
+4. Start SimHub again.
+5. In SimHub, open the **Plugins** tab and verify that **Dashboard Data Provider** is listed and running.
+
+### Option B: Build from scratch
+
+Follow `SETUP_GUIDE.md` in this repository for step-by-step instructions on building the plugin from source and deploying it into SimHub.
 
 ## Requirements
 
@@ -66,7 +76,12 @@ Reset target time to last lap time (reads from current telemetry data).
 
 ## Usage with Loupedeck
 
-Create a Loupedeck plugin that:
-1. Calls `GET /dashboarddata/` to fetch current telemetry and target time
-2. Uses buttons/dials to increment/decrement target time via `POST /dashboarddata/adjust`
-3. Displays the target time and current delta on the Loupedeck display
+To visualize the telemetry data on a Loupedeck device, you can use the separate Loupedeck plugin project:
+
+- **SimHubIntegrationPlugin**: https://github.com/kubofisla/SimHubIntegrationPlugin
+
+That plugin consumes the HTTP API described above (for example `GET /dashboarddata/` and `POST /dashboarddata/adjust`) and displays the target time and delta data on the Loupedeck. If you build your own Loupedeck integration instead, you should:
+
+1. Call `GET /dashboarddata/` to fetch current telemetry and target time.
+2. Use buttons/dials to increment/decrement target time via `POST /dashboarddata/adjust`.
+3. Display the target time and current delta on the Loupedeck display.
